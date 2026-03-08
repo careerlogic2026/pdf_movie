@@ -1,0 +1,6 @@
+streamlit
+PyMuPDF
+google-generativeai
+edge-tts
+moviepy==1.0.3
+nest_asyncio
