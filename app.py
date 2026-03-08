@@ -131,8 +131,13 @@ if st.session_state.step == 2:
             voice_id = "ja-JP-NanamiNeural" if "女性" in voice_type else "ja-JP-KeitaNeural"
             selected_rate = speed_map[speed_choice]
             
-            communicate = edge_tts.Communicate(audio_text, voice_id, rate=selected_rate)
-            asyncio.run(communicate.save(audio_path))
+            # 👇ここから変更👇（async def という箱を作って実行させます）
+            async def _generate():
+                communicate = edge_tts.Communicate(audio_text, voice_id, rate=selected_rate)
+                await communicate.save(audio_path)
+            
+            asyncio.run(_generate())
+            # 👆ここまで変更👆
 
             audio_clip = AudioFileClip(audio_path)
             img_clip = ImageClip(img_path).set_duration(audio_clip.duration)
