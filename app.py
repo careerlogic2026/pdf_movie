@@ -54,7 +54,7 @@ if st.session_state.step == 1:
             st.stop()
 
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-3.1-flash-lite')
+        model = genai.GenerativeModel('gemini-3.1-flash-lite-preview')
         
         pdf_path = "temp_uploaded.pdf"
         with open(pdf_path, "wb") as f:
