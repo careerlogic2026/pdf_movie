@@ -131,12 +131,16 @@ if st.session_state.step == 2:
             voice_id = "ja-JP-NanamiNeural" if "女性" in voice_type else "ja-JP-KeitaNeural"
             selected_rate = speed_map[speed_choice]
             
-            # 👇ここから変更👇（async def という箱を作って実行させます）
-            async def _generate():
-                communicate = edge_tts.Communicate(audio_text, voice_id, rate=selected_rate)
-                await communicate.save(audio_path)
-            
-            asyncio.run(_generate())
+            # 👇ここから変更👇（複雑な処理を捨てて、裏口コマンドで直接実行します！）
+            import subprocess
+            cmd = [
+                "edge-tts",
+                "--text", audio_text,
+                "--voice", voice_id,
+                "--rate", selected_rate,
+                "--write-media", audio_path
+            ]
+            subprocess.run(cmd, check=True)
             # 👆ここまで変更👆
 
             audio_clip = AudioFileClip(audio_path)
