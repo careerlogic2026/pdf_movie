@@ -1,13 +1,3 @@
-import sys
-import asyncio
-
-# 🚨 【超重要】Streamlitの新しいエンジンと音声ツールがぶつかるのを防ぐ最強のおまじない（必ず一番上に書く）
-if sys.platform == 'linux':
-    asyncio.set_event_loop_policy(asyncio.DefaultEventLoopPolicy())
-
-import nest_asyncio
-nest_asyncio.apply()
-
 import streamlit as st
 import os
 import time
