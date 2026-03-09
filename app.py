@@ -34,13 +34,38 @@ if 'step' not in st.session_state: st.session_state.step = 1
 if 'scripts' not in st.session_state: st.session_state.scripts = {}
 if 'pdf_images' not in st.session_state: st.session_state.pdf_images = []
 
-# サイドバー設定の初期化（履歴復元のため）
-if 'target' not in st.session_state: st.session_state.target = "新入社員向け"
-if 'tone' not in st.session_state: st.session_state.tone = "です・ます調（丁寧）"
-if 'time_sec' not in st.session_state: st.session_state.time_sec = 20
-if 'voice_type' not in st.session_state: st.session_state.voice_type = "女性（Nanami）"
-if 'speed_choice' not in st.session_state: st.session_state.speed_choice = "標準"
-if 'custom_prompt' not in st.session_state: st.session_state.custom_prompt = "専門用語はわかりやすく噛み砕いてください。\n明るく前向きなトーンで話してください。"
+# 🌟 追加機能：アプリ起動時に1回だけ「最新のログ」から設定を自動読み込み
+if 'settings_loaded' not in st.session_state:
+    # まずデフォルトの初期値を入れておく
+    st.session_state.target = "新入社員向け"
+    st.session_state.tone = "です・ます調（丁寧）"
+    st.session_state.time_sec = 20
+    st.session_state.voice_type = "女性（Nanami）"
+    st.session_state.speed_choice = "標準"
+    st.session_state.custom_prompt = "専門用語はわかりやすく噛み砕いてください。\n明るく前向きなトーンで話してください。"
+    st.session_state.dict_input = "SaaS=サアス\nMakuake=マクアケ\nKPI=ケーピーアイ"
+    
+    # スプレッドシートから最新1件を取得して上書きする
+    try:
+        client = get_gspread_client()
+        sheet = client.open_by_key(SHEET_ID).sheet1
+        records = sheet.get_all_values()
+        if len(records) > 1:
+            latest_record = records[-1] # 一番下（最新）の行を取得
+            saved_settings = json.loads(latest_record[3])
+            
+            # 保存されている設定があれば上書き
+            if "target" in saved_settings: st.session_state.target = saved_settings["target"]
+            if "tone" in saved_settings: st.session_state.tone = saved_settings["tone"]
+            if "time_sec" in saved_settings: st.session_state.time_sec = saved_settings["time_sec"]
+            if "voice_type" in saved_settings: st.session_state.voice_type = saved_settings["voice_type"]
+            if "speed_choice" in saved_settings: st.session_state.speed_choice = saved_settings["speed_choice"]
+            if "custom_prompt" in saved_settings: st.session_state.custom_prompt = saved_settings["custom_prompt"]
+            if "dict_input" in saved_settings: st.session_state.dict_input = saved_settings["dict_input"]
+    except Exception:
+        pass # 初回やエラー時はデフォルトのまま続行（画面を止めないための安全策）
+        
+    st.session_state.settings_loaded = True
 
 # --- UI全体の設定 ---
 st.set_page_config(page_title="PDF解説動画メーカー", page_icon="🎬", layout="wide")
@@ -56,7 +81,6 @@ if passcode != "20170715":
 
 api_key = st.sidebar.text_input("🔑 Gemini APIキー", type="password")
 
-# ⚠️ 修正ポイント1：Streamlitエラー回避のため、keyではなく直接値を受け渡しする方式に変更
 target_opts = ["新入社員向け", "既存顧客の担当者向け", "役員・決裁者向け"]
 st.session_state.target = st.sidebar.selectbox("🎯 誰向けに解説しますか？", target_opts, index=target_opts.index(st.session_state.target) if st.session_state.target in target_opts else 0)
 
@@ -84,14 +108,13 @@ st.title("🎬 社内向け：PDF解説動画自動生成ツール")
 if st.session_state.step == 1:
     st.subheader("📝 1. スライド(PDF)と台本の準備")
     
-    dict_input = st.text_area("📖 社内用語・読み方辞書 (例: SaaS=サアス)", value="SaaS=サアス\nMakuake=マクアケ\nKPI=ケーピーアイ")
-    st.session_state.dict_input = dict_input
+    # 🌟 辞書の入力欄も、セッション状態（自動読み込み値）をベースにする
+    st.session_state.dict_input = st.text_area("📖 社内用語・読み方辞書 (例: SaaS=サアス)", value=st.session_state.dict_input)
     
     st.divider()
     
     uploaded_pdf = st.file_uploader("📄 スライド(PDF)をアップロード 【必須】", type=['pdf'])
     
-    # ⚠️ 修正ポイント2：PDFがアップロードされたら名前を記憶する
     if uploaded_pdf:
         st.session_state.uploaded_pdf_name = uploaded_pdf.name
     
@@ -212,13 +235,14 @@ if st.session_state.step == 1:
                 else:
                     st.session_state.scripts[page_num] = "（※当時の台本がありません。ここに入力してください）"
                     
-            # 設定（サイドバーの内容）の復元
+            # 🌟 履歴復元時にも辞書を反映する
             if "target" in saved_settings: st.session_state.target = saved_settings["target"]
             if "tone" in saved_settings: st.session_state.tone = saved_settings["tone"]
             if "time_sec" in saved_settings: st.session_state.time_sec = saved_settings["time_sec"]
             if "voice_type" in saved_settings: st.session_state.voice_type = saved_settings["voice_type"]
             if "speed_choice" in saved_settings: st.session_state.speed_choice = saved_settings["speed_choice"]
             if "custom_prompt" in saved_settings: st.session_state.custom_prompt = saved_settings["custom_prompt"]
+            if "dict_input" in saved_settings: st.session_state.dict_input = saved_settings["dict_input"]
             
             progress_bar.progress(1.0)
 
@@ -252,16 +276,18 @@ if st.session_state.step == 2:
             client = get_gspread_client()
             sheet = client.open_by_key(SHEET_ID).sheet1
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            # PDFの正しいファイル名を取得
             pdf_name = st.session_state.get('uploaded_pdf_name', 'presentation.pdf')
             scripts_json = json.dumps(st.session_state.scripts, ensure_ascii=False)
+            
+            # 🌟 保存データに「辞書（dict_input）」を追加
             settings_json = json.dumps({
                 "target": st.session_state.target,
                 "tone": st.session_state.tone,
                 "time_sec": st.session_state.time_sec,
                 "voice_type": st.session_state.voice_type,
                 "speed_choice": st.session_state.speed_choice,
-                "custom_prompt": st.session_state.custom_prompt
+                "custom_prompt": st.session_state.custom_prompt,
+                "dict_input": st.session_state.dict_input
             }, ensure_ascii=False)
             
             sheet.append_row([timestamp, pdf_name, scripts_json, settings_json])
