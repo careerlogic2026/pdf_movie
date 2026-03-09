@@ -55,17 +55,28 @@ if passcode != "20170715":
     st.stop()
 
 api_key = st.sidebar.text_input("🔑 Gemini APIキー", type="password")
-st.sidebar.selectbox("🎯 誰向けに解説しますか？", ["新入社員向け", "既存顧客の担当者向け", "役員・決裁者向け"], key="target")
-st.sidebar.selectbox("🎭 トーン", ["です・ます調（丁寧）", "だ・である調（少しお堅め）", "熱血営業マン風", "ニュースキャスター風"], key="tone")
-st.sidebar.slider("⏳ 1ページあたりの時間", min_value=10, max_value=60, step=5, key="time_sec")
-st.sidebar.radio("🗣️ 音声の種類", ["女性（Nanami）", "男性（Keita）"], key="voice_type")
-st.sidebar.selectbox("⏩ 話すスピード", ["少しゆっくり", "標準", "少し速め", "速い"], key="speed_choice")
+
+# ⚠️ 修正ポイント1：Streamlitエラー回避のため、keyではなく直接値を受け渡しする方式に変更
+target_opts = ["新入社員向け", "既存顧客の担当者向け", "役員・決裁者向け"]
+st.session_state.target = st.sidebar.selectbox("🎯 誰向けに解説しますか？", target_opts, index=target_opts.index(st.session_state.target) if st.session_state.target in target_opts else 0)
+
+tone_opts = ["です・ます調（丁寧）", "だ・である調（少しお堅め）", "熱血営業マン風", "ニュースキャスター風"]
+st.session_state.tone = st.sidebar.selectbox("🎭 トーン", tone_opts, index=tone_opts.index(st.session_state.tone) if st.session_state.tone in tone_opts else 0)
+
+st.session_state.time_sec = st.sidebar.slider("⏳ 1ページあたりの時間", min_value=10, max_value=60, step=5, value=int(st.session_state.time_sec))
+
+voice_opts = ["女性（Nanami）", "男性（Keita）"]
+st.session_state.voice_type = st.sidebar.radio("🗣️ 音声の種類", voice_opts, index=voice_opts.index(st.session_state.voice_type) if st.session_state.voice_type in voice_opts else 0)
+
+speed_opts = ["少しゆっくり", "標準", "少し速め", "速い"]
+st.session_state.speed_choice = st.sidebar.selectbox("⏩ 話すスピード", speed_opts, index=speed_opts.index(st.session_state.speed_choice) if st.session_state.speed_choice in speed_opts else 1)
+
 speed_map = {"少しゆっくり": "-10%", "標準": "+0%", "少し速め": "+15%", "速い": "+30%"}
 use_subtitle = st.sidebar.checkbox("🔤 字幕をつける", value=True)
 
 st.sidebar.divider()
 st.sidebar.subheader("📝 AIへの追加指示 (プロンプト)")
-st.sidebar.text_area("自由に指示を追加できます", height=100, key="custom_prompt")
+st.session_state.custom_prompt = st.sidebar.text_area("自由に指示を追加できます", value=st.session_state.custom_prompt, height=100)
 
 # --- メイン画面 ---
 st.title("🎬 社内向け：PDF解説動画自動生成ツール")
@@ -79,6 +90,10 @@ if st.session_state.step == 1:
     st.divider()
     
     uploaded_pdf = st.file_uploader("📄 スライド(PDF)をアップロード 【必須】", type=['pdf'])
+    
+    # ⚠️ 修正ポイント2：PDFがアップロードされたら名前を記憶する
+    if uploaded_pdf:
+        st.session_state.uploaded_pdf_name = uploaded_pdf.name
     
     script_method = st.radio("🤖 台本の作成方法を選択", ["✨ AIで自動生成 (Gemini)", "📁 CSVから読み込む", "🕒 過去の履歴から復元"])
     
@@ -237,7 +252,7 @@ if st.session_state.step == 2:
             client = get_gspread_client()
             sheet = client.open_by_key(SHEET_ID).sheet1
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            # PDF名を取得（復元などで名前が取れない場合は Unknown とする）
+            # PDFの正しいファイル名を取得
             pdf_name = st.session_state.get('uploaded_pdf_name', 'presentation.pdf')
             scripts_json = json.dumps(st.session_state.scripts, ensure_ascii=False)
             settings_json = json.dumps({
